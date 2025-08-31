@@ -9,7 +9,7 @@ Each section covers a different sensor, module, or component, with simple exampl
 3. Open in Arduino IDE / VS Code.
 4. Upload to your Arduino/ESP board.
 
-##📂 Contents
+# 📂 Contents
 
 1. [LCD (16x2 Display)](LCD.cpp)
 2. [Serial Monitor Basics](Serial_Monitor.cpp)
