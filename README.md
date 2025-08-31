@@ -11,7 +11,7 @@ Each section covers a different sensor, module, or component, with simple exampl
 
 1. [LCD (16x2 Display)](LCD.cpp)
 2. [Serial Monitor Basics](Serial_Monitor.cpp)
-3. [Bluetooth Module (HC-05/HC-06)(Bluetooth_Module.cpp)
+3. [Bluetooth Module (HC-05/HC-06)](Bluetooth_Module.cpp)
 4. [Ultrasonic Sensor (HC-SR04)](Ultrasonic.cpp) 
 5. [Infrared Sensor](Infrared.cpp)
 6. [Joystick Module](Joystick.cpp)
