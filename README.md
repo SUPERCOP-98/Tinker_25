@@ -3,11 +3,13 @@ Welcome! 🎉
 This repository contains ready-to-use Arduino codes for beginners and students in classes 6–12.
 Each section covers a different sensor, module, or component, with simple examples you can directly upload to your Arduino Uno/Nano/Mega.
 
-📂 Contents
+## How to Use
+1. Click on any file below.
+2. Copy the code (Raw view) OR download the ZIP.
+3. Open in Arduino IDE / VS Code.
+4. Upload to your Arduino/ESP board.
 
-# Arduino Codes for Students
-
-## Contents
+##📂 Contents
 
 1. [LCD (16x2 Display)](LCD.cpp)
 2. [Serial Monitor Basics](Serial_Monitor.cpp)
