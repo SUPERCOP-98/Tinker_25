@@ -1,4 +1,17 @@
 # ATL_2025
-All the codes that are used in the ATL for the year 2025.
-<br>
-You will get all the codes of the particular year by the name of the project that is made in ATL.
+Welcome! 🎉
+This repository contains ready-to-use Arduino codes for beginners and students in classes 6–12.
+Each section covers a different sensor, module, or component, with simple examples you can directly upload to your Arduino Uno/Nano/Mega.
+
+📂 Contents
+LCD (16x2 Display)
+
+
+
+
+
+
+
+
+
+
