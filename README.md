@@ -9,7 +9,7 @@ Each section covers a different sensor, module, or component, with simple exampl
 
 ## Contents
 
-1. [LCD (16x2 Display)](codes/LCD.cpp)
+1. [LCD (16x2 Display)](LCD.cpp)
 2. [Serial Monitor Basics](codes/SerialMonitor.cpp)
 3. [Bluetooth Module (HC-05/HC-06) (codes/Bluetooth%20Module.cpp)
 4. [Ultrasonic Sensor (HC-SR04)](main/Ultrasonic.cpp) 
