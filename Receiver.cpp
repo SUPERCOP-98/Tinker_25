@@ -1,19 +1,19 @@
 #define RXD2 16
 #define TXD2 17
 
-// Threshold
 #define MQ135_THRESHOLD 100
 
-// Outputs
 #define BUZZER_PIN 27
 #define ALERT_LED  4
 #define STATUS_LED 12
-
-// Push button input
 #define BUTTON_PIN 21
 
-bool alertsEnabled = true;   // Start with alerts enabled
-bool lastButtonState = HIGH; // For debouncing
+bool alertsEnabled = true;
+bool lastButtonState = HIGH;
+
+unsigned long previousMillis = 0;
+const long interval = 500; // blink every 500ms
+bool alertState = false;
 
 void setup() {
   Serial.begin(115200);
@@ -22,27 +22,27 @@ void setup() {
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(ALERT_LED, OUTPUT);
   pinMode(STATUS_LED, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);  // Push button with pull-up
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   digitalWrite(BUZZER_PIN, LOW);
   digitalWrite(ALERT_LED, LOW);
-  digitalWrite(STATUS_LED, HIGH);  // Start enabled
+  digitalWrite(STATUS_LED, HIGH);
 
-  Serial.println("UART Receiver with MQ135 Threshold + Button Control Ready...");
+  Serial.println("UART Receiver with Blinking MQ135 Alerts Ready...");
 }
 
 void loop() {
-  // ---- Button handling (toggle on press) ----
+  // --- Button handling (toggle on press) ---
   bool buttonState = digitalRead(BUTTON_PIN);
   if (lastButtonState == HIGH && buttonState == LOW) {
-    alertsEnabled = !alertsEnabled;  // Toggle state
+    alertsEnabled = !alertsEnabled;
     digitalWrite(STATUS_LED, alertsEnabled ? HIGH : LOW);
-    Serial.println(alertsEnabled ? "Alerts ENABLED" : "Alerts DISABLED");
-    delay(200); // Simple debounce
+    Serial.println(alertsEnabled ? "MQ-135 ON!" : "MQ-135 OFF!");
+    delay(200); // debounce
   }
   lastButtonState = buttonState;
 
-  // ---- UART data reading ----
+  // --- UART data reading ---
   if (Serial2.available()) {
     String data = Serial2.readStringUntil('\n');
     Serial.println("Received: " + data);
@@ -54,9 +54,15 @@ void loop() {
                &temp, &hum, &mq7, &mq5, &mq135) == 5) {
 
       if (alertsEnabled && mq135 > MQ135_THRESHOLD) {
-        Serial.println("⚠ ALERT: MQ135 Threshold Exceeded!");
-        digitalWrite(BUZZER_PIN, HIGH);
-        digitalWrite(ALERT_LED, HIGH);
+        // --- Blinking logic ---
+        unsigned long currentMillis = millis();
+        if (currentMillis - previousMillis >= interval) {
+          previousMillis = currentMillis;
+          alertState = !alertState;  // toggle
+          digitalWrite(BUZZER_PIN, alertState ? HIGH : LOW);
+          digitalWrite(ALERT_LED, alertState ? HIGH : LOW);
+        }
+        Serial.println("⚠ MQ135 Activated!");
       } else {
         digitalWrite(BUZZER_PIN, LOW);
         digitalWrite(ALERT_LED, LOW);
