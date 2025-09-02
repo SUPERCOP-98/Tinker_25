@@ -4,7 +4,7 @@
 void setup() {
   Serial.begin(115200);                            // For Serial Monitor
   Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);     // Define pins + baud rate
-  Serial.println("UART Receiver Ready...");
+  Serial.println("UART Receiver Ready....");
 }
 
 void loop() {
