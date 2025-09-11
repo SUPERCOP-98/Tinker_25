@@ -25,6 +25,7 @@ Each section covers a different sensor, module, or component, with simple exampl
 12. [DC Motor with L298N Driver](DCMotor.cpp)
 13. [Buzzer](Buzzer_(Piezo).cpp)
 14. [Relay Module](Relay_Module_(for_AC_devices).cpp)
+15. [Rain_Cloth_System](Rain_Cloth_System.cpp)
 
 
 
