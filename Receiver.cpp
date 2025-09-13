@@ -61,20 +61,28 @@ void loop() {
     String data = Serial2.readStringUntil('\n');
     Serial.println("Received: " + data);
 
-    float temp, hum;
-    int mq7, mq5, mq135;
+    float temp, hum, o2percent;
+    int mq7, mq5, mq135, o2raw;
 
-    if (sscanf(data.c_str(), "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d",
-               &temp, &hum, &mq7, &mq5, &mq135) == 5) {
+    if (sscanf(data.c_str(),
+               "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2%%:%f",
+               &temp, &hum, &mq7, &mq5, &mq135, &o2raw, &o2percent) == 7) {
 
       // Handle MQ135
-      handleAlert(mq135, MQ135_THRESHOLD, alertsEnabled_MQ135, MQ135_BUZZER, MQ135_LED, alertState_MQ135, previousMillis_MQ135, "MQ135");
+      handleAlert(mq135, MQ135_THRESHOLD, alertsEnabled_MQ135,
+                  MQ135_BUZZER, MQ135_LED, alertState_MQ135, previousMillis_MQ135, "MQ135");
 
       // Handle MQ7
-      handleAlert(mq7, MQ7_THRESHOLD, alertsEnabled_MQ7, MQ7_BUZZER, MQ7_LED, alertState_MQ7, previousMillis_MQ7, "MQ7");
+      handleAlert(mq7, MQ7_THRESHOLD, alertsEnabled_MQ7,
+                  MQ7_BUZZER, MQ7_LED, alertState_MQ7, previousMillis_MQ7, "MQ7");
 
       // Handle MQ5
-      handleAlert(mq5, MQ5_THRESHOLD, alertsEnabled_MQ5, MQ5_BUZZER, MQ5_LED, alertState_MQ5, previousMillis_MQ5, "MQ5");
+      handleAlert(mq5, MQ5_THRESHOLD, alertsEnabled_MQ5,
+                  MQ5_BUZZER, MQ5_LED, alertState_MQ5, previousMillis_MQ5, "MQ5");
+
+      // Debug O2 values
+      Serial.print("O2 Raw: "); Serial.print(o2raw);
+      Serial.print(" | O2 %: "); Serial.println(o2percent);
 
     } else {
       Serial.println("⚠ Parsing Error: Check data format");
