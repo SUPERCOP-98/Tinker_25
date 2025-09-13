@@ -24,97 +24,85 @@
 #define MQ5_BUTTON   18
 #define MQ5_STATUS   15
 
-// Global variables for push button states
+// Data reception status LED
+#define STATUS_LED_PIN 14
+#define STATUS_BLINK_MS 80
+
+// Button states
 bool alertsEnabled_MQ135 = true, alertsEnabled_MQ7 = true, alertsEnabled_MQ5 = true;
 bool lastButtonState_MQ135 = HIGH, lastButtonState_MQ7 = HIGH, lastButtonState_MQ5 = HIGH;
 
-// Blinking variables
-unsigned long previousMillis_MQ135 = 0, previousMillis_MQ7 = 0, previousMillis_MQ5 = 0;
-const long interval = 500; // blink every 500ms
-bool alertState_MQ135 = false, alertState_MQ7 = false, alertState_MQ5 = false;
+// Timing
+unsigned long statusLedOffTime = 0;
+unsigned long prevMillis135 = 0, prevMillis7 = 0, prevMillis5 = 0;
+int mq7PatternStep = 0;   // for MQ7 double-beep sequence
 
 void setup() {
   Serial.begin(115200);
   Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
 
-  // Setup pins
   pinMode(MQ135_BUZZER, OUTPUT); pinMode(MQ135_LED, OUTPUT); pinMode(MQ135_STATUS, OUTPUT); pinMode(MQ135_BUTTON, INPUT_PULLUP);
-  pinMode(MQ7_BUZZER, OUTPUT); pinMode(MQ7_LED, OUTPUT); pinMode(MQ7_STATUS, OUTPUT); pinMode(MQ7_BUTTON, INPUT_PULLUP);
-  pinMode(MQ5_BUZZER, OUTPUT); pinMode(MQ5_LED, OUTPUT); pinMode(MQ5_STATUS, OUTPUT); pinMode(MQ5_BUTTON, INPUT_PULLUP);
+  pinMode(MQ7_BUZZER, OUTPUT);   pinMode(MQ7_LED, OUTPUT);   pinMode(MQ7_STATUS, OUTPUT);   pinMode(MQ7_BUTTON, INPUT_PULLUP);
+  pinMode(MQ5_BUZZER, OUTPUT);   pinMode(MQ5_LED, OUTPUT);   pinMode(MQ5_STATUS, OUTPUT);   pinMode(MQ5_BUTTON, INPUT_PULLUP);
 
-  // Initialize outputs
-  digitalWrite(MQ135_BUZZER, LOW); digitalWrite(MQ135_LED, LOW); digitalWrite(MQ135_STATUS, HIGH);
-  digitalWrite(MQ7_BUZZER, LOW); digitalWrite(MQ7_LED, LOW); digitalWrite(MQ7_STATUS, HIGH);
-  digitalWrite(MQ5_BUZZER, LOW); digitalWrite(MQ5_LED, LOW); digitalWrite(MQ5_STATUS, HIGH);
+  pinMode(STATUS_LED_PIN, OUTPUT);
 
-  Serial.println("UART Receiver with 3 Sensors & Alerts Ready...");
+  digitalWrite(MQ135_STATUS, HIGH);
+  digitalWrite(MQ7_STATUS, HIGH);
+  digitalWrite(MQ5_STATUS, HIGH);
+
+  Serial.println("Receiver ready with distinct beep patterns...");
 }
 
 void loop() {
-  // --- Button handling (toggle on press) ---
+  // Handle buttons
   handleButton(MQ135_BUTTON, alertsEnabled_MQ135, lastButtonState_MQ135, MQ135_STATUS);
   handleButton(MQ7_BUTTON, alertsEnabled_MQ7, lastButtonState_MQ7, MQ7_STATUS);
   handleButton(MQ5_BUTTON, alertsEnabled_MQ5, lastButtonState_MQ5, MQ5_STATUS);
 
-  // --- UART data reading ---
+  // Status LED timeout
+  if (statusLedOffTime != 0 && millis() > statusLedOffTime) {
+    digitalWrite(STATUS_LED_PIN, LOW);
+    statusLedOffTime = 0;
+  }
+
+  // UART data
   if (Serial2.available()) {
     String data = Serial2.readStringUntil('\n');
+    data.trim();
     Serial.println("Received: " + data);
+
+    // Blink status LED
+    digitalWrite(STATUS_LED_PIN, HIGH);
+    statusLedOffTime = millis() + STATUS_BLINK_MS;
+
+    // Normalize for parsing
+    data.replace(" ", "");  // thin space
+    data.replace("₂", "2"); // subscript 2
+    data.replace("°C", "");
+    data.replace("%", "");
 
     float temp, hum, o2percent;
     int mq7, mq5, mq135, o2raw;
 
-    if (sscanf(data.c_str(),
-               "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2%%:%f",
-               &temp, &hum, &mq7, &mq5, &mq135, &o2raw, &o2percent) == 7) {
+    int parsed = sscanf(data.c_str(),
+                        "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2:%f",
+                        &temp, &hum, &mq7, &mq5, &mq135, &o2raw, &o2percent);
 
-      // Handle MQ135
-      handleAlert(mq135, MQ135_THRESHOLD, alertsEnabled_MQ135,
-                  MQ135_BUZZER, MQ135_LED, alertState_MQ135, previousMillis_MQ135, "MQ135");
+    if (parsed == 7) {
+      if (alertsEnabled_MQ135) patternMQ135(mq135);
+      if (alertsEnabled_MQ7)   patternMQ7(mq7);
+      if (alertsEnabled_MQ5)   patternMQ5(mq5);
 
-      // Handle MQ7
-      handleAlert(mq7, MQ7_THRESHOLD, alertsEnabled_MQ7,
-                  MQ7_BUZZER, MQ7_LED, alertState_MQ7, previousMillis_MQ7, "MQ7");
-
-      // Handle MQ5
-      handleAlert(mq5, MQ5_THRESHOLD, alertsEnabled_MQ5,
-                  MQ5_BUZZER, MQ5_LED, alertState_MQ5, previousMillis_MQ5, "MQ5");
-
-      // Debug O2 values
       Serial.print("O2 Raw: "); Serial.print(o2raw);
       Serial.print(" | O2 %: "); Serial.println(o2percent);
-
     } else {
-      Serial.println("⚠ Parsing Error: Check data format");
+      Serial.println("⚠ Parsing Error!");
     }
   }
 }
 
-// --- Function to handle push button toggle ---
+// Button toggle
 void handleButton(int buttonPin, bool &alertsEnabled, bool &lastButtonState, int statusLED) {
-  bool buttonState = digitalRead(buttonPin);
-  if (lastButtonState == HIGH && buttonState == LOW) {
-    alertsEnabled = !alertsEnabled;
-    digitalWrite(statusLED, alertsEnabled ? HIGH : LOW);
-    Serial.println(alertsEnabled ? "Alerts ENABLED" : "Alerts DISABLED");
-    delay(200); // debounce
-  }
-  lastButtonState = buttonState;
-}
-
-// --- Function to handle alert blinking ---
-void handleAlert(int sensorValue, int threshold, bool alertsEnabled, int buzzerPin, int ledPin, bool &alertState, unsigned long &previousMillis, const char* sensorName) {
-  if (alertsEnabled && sensorValue > threshold) {
-    unsigned long currentMillis = millis();
-    if (currentMillis - previousMillis >= interval) {
-      previousMillis = currentMillis;
-      alertState = !alertState;
-      digitalWrite(buzzerPin, alertState ? HIGH : LOW);
-      digitalWrite(ledPin, alertState ? HIGH : LOW);
-    }
-    Serial.print("⚠ ALERT: "); Serial.print(sensorName); Serial.println(" Threshold Exceeded!");
-  } else {
-    digitalWrite(buzzerPin, LOW);
-    digitalWrite(ledPin, LOW);
-  }
-}
+  bool state = digitalRead(buttonPin);
+  if (lastButtonStat
