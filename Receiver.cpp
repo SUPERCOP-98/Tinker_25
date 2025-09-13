@@ -26,7 +26,7 @@
 
 // Data reception status LED
 #define STATUS_LED_PIN 14
-#define STATUS_BLINK_MS 80
+#define STATUS_BLINK_MS 300
 
 // Button states
 bool alertsEnabled_MQ135 = true, alertsEnabled_MQ7 = true, alertsEnabled_MQ5 = true;
@@ -51,7 +51,7 @@ void setup() {
   digitalWrite(MQ7_STATUS, HIGH);
   digitalWrite(MQ5_STATUS, HIGH);
 
-  Serial.println("Receiver ready with distinct beep patterns...");
+  Serial.println("Receiver ready...");
 }
 
 void loop() {
@@ -97,7 +97,7 @@ void loop() {
       Serial.print("O2 Raw: "); Serial.print(o2raw);
       Serial.print(" | O2 %: "); Serial.println(o2percent);
     } else {
-      Serial.println("⚠ Parsing Error!");
+      Serial.println("⚠ Error!");
     }
   }
 }
@@ -105,4 +105,90 @@ void loop() {
 // Button toggle
 void handleButton(int buttonPin, bool &alertsEnabled, bool &lastButtonState, int statusLED) {
   bool state = digitalRead(buttonPin);
-  if (lastButtonStat
+  if (lastButtonState == HIGH && state == LOW) {
+    alertsEnabled = !alertsEnabled;
+    digitalWrite(statusLED, alertsEnabled ? HIGH : LOW);
+    Serial.println(alertsEnabled ? "Alerts ENABLED" : "Alerts DISABLED");
+    delay(200);
+  }
+  lastButtonState = state;
+}
+
+// --- Unique Patterns ---
+// MQ135 = Fast blink (200ms)
+void patternMQ135(int value) {
+  if (value > MQ135_THRESHOLD) {
+    unsigned long now = millis();
+    if (now - prevMillis135 >= 200) {
+      prevMillis135 = now;
+      digitalWrite(MQ135_BUZZER, !digitalRead(MQ135_BUZZER));
+      digitalWrite(MQ135_LED, !digitalRead(MQ135_LED));
+    }
+  } else {
+    digitalWrite(MQ135_BUZZER, LOW);
+    digitalWrite(MQ135_LED, LOW);
+  }
+}
+
+// MQ7 = Double short beep pattern
+void patternMQ7(int value) {
+  unsigned long now = millis();
+  if (value > MQ7_THRESHOLD) {
+    switch (mq7PatternStep) {
+      case 0: // first beep
+        digitalWrite(MQ7_BUZZER, HIGH);
+        digitalWrite(MQ7_LED, HIGH);
+        prevMillis7 = now;
+        mq7PatternStep = 1;
+        break;
+      case 1: // pause after first beep
+        if (now - prevMillis7 >= 100) {
+          digitalWrite(MQ7_BUZZER, LOW);
+          digitalWrite(MQ7_LED, LOW);
+          prevMillis7 = now;
+          mq7PatternStep = 2;
+        }
+        break;
+      case 2: // second beep
+        if (now - prevMillis7 >= 100) {
+          digitalWrite(MQ7_BUZZER, HIGH);
+          digitalWrite(MQ7_LED, HIGH);
+          prevMillis7 = now;
+          mq7PatternStep = 3;
+        }
+        break;
+      case 3: // pause after second beep
+        if (now - prevMillis7 >= 100) {
+          digitalWrite(MQ7_BUZZER, LOW);
+          digitalWrite(MQ7_LED, LOW);
+          prevMillis7 = now;
+          mq7PatternStep = 4;
+        }
+        break;
+      case 4: // long pause before repeating
+        if (now - prevMillis7 >= 500) {
+          mq7PatternStep = 0;
+        }
+        break;
+    }
+  } else {
+    digitalWrite(MQ7_BUZZER, LOW);
+    digitalWrite(MQ7_LED, LOW);
+    mq7PatternStep = 0;
+  }
+}
+
+// MQ5 = Slow long beep (1000ms)
+void patternMQ5(int value) {
+  if (value > MQ5_THRESHOLD) {
+    unsigned long now = millis();
+    if (now - prevMillis5 >= 1000) {
+      prevMillis5 = now;
+      digitalWrite(MQ5_BUZZER, !digitalRead(MQ5_BUZZER));
+      digitalWrite(MQ5_LED, !digitalRead(MQ5_LED));
+    }
+  } else {
+    digitalWrite(MQ5_BUZZER, LOW);
+    digitalWrite(MQ5_LED, LOW);
+  }
+}
