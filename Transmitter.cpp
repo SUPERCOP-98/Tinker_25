@@ -33,8 +33,8 @@ void loop() {
   // Assume 140 ADC counts ≈ 21% O2 (normal air at 1 atm, 30 °C)
   float O2_percent = (o2raw / 140.0) * 21.0;
 
-  String data = "Temp:" + String(t) + 
-                ",Humidity:" + String(h) + 
+  String data = "Temp:" + String(t) + "°C" +
+                ",Humidity:" + String(h) + "%"
                 ",MQ 7:" + String(mq7) + 
                 ",MQ 5:" + String(mq5) + 
                 ",MQ 135:" + String(mq135) + 
