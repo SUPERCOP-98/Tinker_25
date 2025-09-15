@@ -90,8 +90,8 @@ void readAndTransmitData() {
   // Create data string - Send O2 raw value only, receiver will calculate percentage
   char dataBuffer[200];
   snprintf(dataBuffer, sizeof(dataBuffer),
-           "Temp:%.1f,Humidity:%.1f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d",
-           temperature, humidity, mq7, mq5, mq135, o2raw ); 
+           "Temp:%.1f,Humidity:%.1f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2:%.2f",
+           temperature, humidity, mq7, mq5, mq135, o2raw, 0.0);  // O2 percentage = 0 (placeholder)
   
   // Transmit data via UART with stability delay
   delay(50);  // Small delay for UART stability and reduce transmission errors
