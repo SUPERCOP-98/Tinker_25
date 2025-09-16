@@ -14,9 +14,9 @@
 #define MQ135_PIN 32     // Air quality/H2S sensor
 #define O2_PIN 33        // Oxygen sensor
 
-// Calibration constants
-#define O2_CALIBRATION_FACTOR 0.15  // Adjust based on sensor datasheet
-#define O2_ZERO_OFFSET 0            // Baseline offset for O2 sensor
+// Calibration constants (for documentation - receiver does actual calibration)
+#define O2_CALIBRATION_FACTOR 0.087  // To be matched with receiver: converts raw ADC to percentage
+#define O2_ZERO_OFFSET 0             // Baseline offset for O2 sensor
 #define WARMUP_TIME_MS 60000        // 60 seconds warmup for MQ sensors
 
 // Global variables
@@ -87,7 +87,7 @@ void readAndTransmitData() {
   int mq135 = getStableReading(MQ135_PIN);
   int o2raw = getStableReading(O2_PIN);  // Send RAW value only
   
-  // Create data string - Send O2 raw value only, receiver will calculate percentage
+  // Create data string ->> Send O2 raw value only, Receiver will calculate percentage
   char dataBuffer[200];
   snprintf(dataBuffer, sizeof(dataBuffer),
            "Temp:%.1f,Humidity:%.1f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2:%.2f",
