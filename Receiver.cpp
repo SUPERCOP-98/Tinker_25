@@ -3,7 +3,7 @@
 
 // Gas sensor thresholds
 #define MQ135_THRESHOLD 100   // Air quality/H2S
-#define MQ7_THRESHOLD   300   // Carbon Monoxide
+#define MQ7_THRESHOLD   500   // Carbon Monoxide
 #define MQ5_THRESHOLD   500   // Methane
 
 // O2 thresholds and calibration
@@ -11,7 +11,7 @@
 #define O2_WARNING_THRESHOLD  16.0  // 16-19.5% = Yellow (Warning)
                                     // <16% = Red (Danger)
 
-// O2 Calibration constants - ADJUST THESE BASED ON YOUR SENSOR
+// O2 Calibration constants - ADJUST ACCORDING TO AO-03
 #define O2_CALIBRATION_FACTOR 0.087  // Adjusted for more realistic readings (21% at ~241 raw)
 #define O2_ZERO_OFFSET        0      // Baseline offset
 
@@ -35,7 +35,7 @@
 
 // RGB LED pins for O2 status
 #define RGB_RED_PIN   2
-#define RGB_GREEN_PIN 23  // Changed from GPIO 0 to GPIO 23
+#define RGB_GREEN_PIN 23  
 #define RGB_BLUE_PIN  5
 
 // Data reception status LED
@@ -43,7 +43,7 @@
 #define STATUS_BLINK_MS 300
 #define DATA_TIMEOUT_MS 10000  // 10 seconds timeout
 
-// Global variables to store current sensor values - MOVED TO TOP
+// Global variables to store current sensor values
 int currentMQ135 = 0, currentMQ7 = 0, currentMQ5 = 0;
 
 // Button states
