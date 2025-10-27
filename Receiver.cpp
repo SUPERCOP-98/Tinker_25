@@ -2,9 +2,9 @@
 #define TXD2 17
 
 // Gas sensor thresholds
-#define MQ135_THRESHOLD 100   // Air quality/H2S
-#define MQ7_THRESHOLD   500   // Carbon Monoxide
-#define MQ5_THRESHOLD   500   // Methane
+#define MQ135_THRESHOLD 660   // Air quality/H2S
+#define MQ7_THRESHOLD   660   // Carbon Monoxide
+#define MQ5_THRESHOLD   660   // Methane
 
 // O2 thresholds and calibration
 #define O2_SAFE_THRESHOLD     19.5  // >19.5% = Green (Safe)
@@ -34,14 +34,21 @@
 #define MQ5_STATUS   15
 
 // RGB LED pins for O2 status
-#define RGB_RED_PIN   2
+// NOTE: If colors are wrong, try swapping these pin definitions
+#define RGB_RED_PIN   5    // Swapped with BLUE
 #define RGB_GREEN_PIN 23  
-#define RGB_BLUE_PIN  5
+#define RGB_BLUE_PIN  2    // Swapped with RED
 
 // Data reception status LED
 #define STATUS_LED_PIN 14
 #define STATUS_BLINK_MS 300
 #define DATA_TIMEOUT_MS 10000  // 10 seconds timeout
+
+// Connection loss warning pattern
+#define WARNING_BLINK_COUNT 5
+#define WARNING_BLINK_ON_MS 200
+#define WARNING_BLINK_OFF_MS 200
+#define WARNING_PAUSE_MS 10000
 
 // Global variables to store current sensor values
 int currentMQ135 = 0, currentMQ7 = 0, currentMQ5 = 0;
@@ -54,7 +61,15 @@ bool lastButtonState_MQ135 = HIGH, lastButtonState_MQ7 = HIGH, lastButtonState_M
 unsigned long statusLedOffTime = 0;
 unsigned long prevMillis135 = 0, prevMillis7 = 0, prevMillis5 = 0;
 unsigned long lastDataReceived = 0;
+bool dataReceivedOnce = false;
 int mq7PatternStep = 0;   // for MQ7 double-beep sequence
+
+// Connection loss warning variables
+unsigned long warningBlinkTimer = 0;
+int warningBlinkCount = 0;
+bool warningBlinkState = false;
+enum WarningState { WAITING, BLINKING, PAUSING };
+WarningState warningState = WAITING;
 
 void setup() {
   Serial.begin(115200);
@@ -121,6 +136,11 @@ void processIncomingData() {
   digitalWrite(STATUS_LED_PIN, HIGH);
   statusLedOffTime = millis() + STATUS_BLINK_MS;
   lastDataReceived = millis();
+  dataReceivedOnce = true;
+  
+  // Reset warning state when data is received
+  warningState = WAITING;
+  warningBlinkCount = 0;
 
   // Clean up data for parsing
   data.replace(" ", "");   // Remove spaces
@@ -138,7 +158,7 @@ void processIncomingData() {
   if (parsed == 6) {
     // Calculate O2 percentage from raw value
     float o2percent = (o2raw * O2_CALIBRATION_FACTOR) + O2_ZERO_OFFSET;
-    o2percent = constrain(o2percent, 0.0, 30.0);  // Increased upper limit
+    o2percent = constrain(o2percent, 0.0, 30.0);
 
     // Store sensor values for alert patterns
     currentMQ135 = mq135;
@@ -148,7 +168,7 @@ void processIncomingData() {
     // Handle O2 RGB LED indication
     handleOxygenStatus(o2percent);
 
-    // Display parsed data with debug info
+    // Display parsed data
     Serial.println("=== SENSOR DATA ===");
     Serial.printf("Temperature: %.1f°C\n", temp);
     Serial.printf("Humidity: %.1f%%\n", hum);
@@ -156,7 +176,6 @@ void processIncomingData() {
     Serial.printf("MQ5 (CH4): %d %s\n", mq5, (mq5 > MQ5_THRESHOLD) ? "ALERT!" : "OK");
     Serial.printf("MQ135 (Air): %d %s\n", mq135, (mq135 > MQ135_THRESHOLD) ? "ALERT!" : "OK");
     Serial.printf("O2 Raw: %d | O2: %.2f%% %s\n", o2raw, o2percent, getO2Status(o2percent).c_str());
-    Serial.printf("DEBUG - Raw calc: %.2f, After constrain: %.2f\n", (o2raw * O2_CALIBRATION_FACTOR), o2percent);
     Serial.println("==================");
     
   } else {
@@ -192,18 +211,64 @@ void handleButton(int buttonPin, bool &alertsEnabled, bool &lastButtonState, int
   lastButtonState = state;
 }
 
-// Check for communication timeout
+// Check for communication timeout and handle warning pattern
 void checkDataTimeout() {
-  if (lastDataReceived > 0 && (millis() - lastDataReceived > DATA_TIMEOUT_MS)) {
-    // Flash status LED to indicate communication loss
-    digitalWrite(STATUS_LED_PIN, (millis() / 500) % 2);
-    
-    // Flash RGB LED red for communication error
-    if ((millis() / 1000) % 2) {
-      setRGBColor(255, 0, 0);  // Red
-    } else {
-      setRGBColor(0, 0, 0);    // Off
-    }
+  // Only check timeout if we've received data at least once
+  if (!dataReceivedOnce || (millis() - lastDataReceived <= DATA_TIMEOUT_MS)) {
+    return;  // Connection is OK or never established
+  }
+
+  // Connection lost - run warning pattern
+  unsigned long now = millis();
+  
+  switch (warningState) {
+    case WAITING:
+      // Start the warning sequence
+      warningState = BLINKING;
+      warningBlinkCount = 0;
+      warningBlinkState = true;
+      digitalWrite(STATUS_LED_PIN, HIGH);
+      warningBlinkTimer = now;
+      Serial.println("⚠ CONNECTION LOST - Starting warning blinks");
+      
+      // Flash RGB LED red for communication error
+      setRGBColor(255, 0, 0);
+      break;
+      
+    case BLINKING:
+      // Handle the 5 blinks
+      if (warningBlinkState) {
+        // LED is ON, wait for ON duration
+        if (now - warningBlinkTimer >= WARNING_BLINK_ON_MS) {
+          digitalWrite(STATUS_LED_PIN, LOW);
+          warningBlinkState = false;
+          warningBlinkTimer = now;
+          warningBlinkCount++;
+        }
+      } else {
+        // LED is OFF, wait for OFF duration
+        if (now - warningBlinkTimer >= WARNING_BLINK_OFF_MS) {
+          if (warningBlinkCount < WARNING_BLINK_COUNT) {
+            // Continue blinking
+            digitalWrite(STATUS_LED_PIN, HIGH);
+            warningBlinkState = true;
+            warningBlinkTimer = now;
+          } else {
+            // Finished 5 blinks, start pause
+            warningState = PAUSING;
+            warningBlinkTimer = now;
+            setRGBColor(0, 0, 0);  // Turn off RGB during pause
+          }
+        }
+      }
+      break;
+      
+    case PAUSING:
+      // Wait 10 seconds before repeating
+      if (now - warningBlinkTimer >= WARNING_PAUSE_MS) {
+        warningState = WAITING;  // Restart the cycle
+      }
+      break;
   }
 }
 
@@ -224,15 +289,10 @@ void handleOxygenStatus(float o2percent) {
 // Set RGB LED color - Fixed for COMMON ANODE RGB LED
 void setRGBColor(int red, int green, int blue) {
   // For common anode RGB LED: LOW = ON, HIGH = OFF
-  // Turn off all colors first (set all pins HIGH)
-  digitalWrite(RGB_RED_PIN, HIGH);
-  digitalWrite(RGB_GREEN_PIN, HIGH);
-  digitalWrite(RGB_BLUE_PIN, HIGH);
-  
-  // Turn on only the required colors (set pins LOW)
-  if (red > 0) digitalWrite(RGB_RED_PIN, LOW);
-  if (green > 0) digitalWrite(RGB_GREEN_PIN, LOW);
-  if (blue > 0) digitalWrite(RGB_BLUE_PIN, LOW);
+  // Invert the logic: HIGH to turn OFF, LOW to turn ON
+  digitalWrite(RGB_RED_PIN, (red > 0) ? LOW : HIGH);
+  digitalWrite(RGB_GREEN_PIN, (green > 0) ? LOW : HIGH);
+  digitalWrite(RGB_BLUE_PIN, (blue > 0) ? LOW : HIGH);
 }
 
 // Get O2 status string for display
