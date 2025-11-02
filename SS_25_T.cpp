@@ -1,8 +1,6 @@
 // Pin definitions for Arduino Uno
-#define RXD 0            // UART receive pin (Serial)
-#define TXD 1            // UART transmit pin (Serial)
-#define STATUS_LED 13    // Built-in LED for status
 #define TRANSMIT_LED 12  // Data transmission indicator LED
+#define STATUS_LED 13    // Built-in LED for status
 
 // Sensor analog pins
 #define MQ7_PIN A0       // Carbon Monoxide sensor
@@ -18,7 +16,7 @@ int transmissionCount = 0;
 bool sensorsWarmedUp = false;
 
 void setup() {
-  Serial.begin(9600);  // UART communication with ESP32
+  Serial.begin(9600);  // UART communication with ESP32 (TX/RX only - no debug!)
   
   // Initialize pins
   pinMode(STATUS_LED, OUTPUT);
@@ -27,35 +25,27 @@ void setup() {
   startTime = millis();
   digitalWrite(STATUS_LED, HIGH);  // Power indicator
   
-  Serial.println("=== Arduino MQ Sensor Transmitter Started ===");
-  Serial.println("Warming up MQ sensors for 60 seconds...");
+  // Wait for warmup silently (LED will blink)
 }
 
 void loop() {
   // Check if sensors are still warming up
   if (!sensorsWarmedUp) {
     if (millis() - startTime < WARMUP_TIME_MS) {
-      unsigned long remaining = (WARMUP_TIME_MS - (millis() - startTime)) / 1000;
-      if (remaining % 10 == 0 || remaining < 10) {
-        Serial.print("Warming up... ");
-        Serial.print(remaining);
-        Serial.println("s remaining");
-      }
-      // Blink status LED during warmup
+      // Blink status LED during warmup (500ms intervals)
       digitalWrite(STATUS_LED, (millis() / 500) % 2);
       delay(1000);
       return;
     } else {
       sensorsWarmedUp = true;
-      digitalWrite(STATUS_LED, HIGH);
-      Serial.println("Sensors ready! Starting transmission...");
+      digitalWrite(STATUS_LED, HIGH);  // Solid when ready
     }
   }
   
   // Read and transmit sensor data
   readAndTransmitData();
   
-  delay(3000);
+  delay(3000);  // Send data every 3 seconds
 }
 
 void readAndTransmitData() {
@@ -70,15 +60,17 @@ void readAndTransmitData() {
            "MQ7:%d,MQ5:%d,MQ135:%d",
            mq7, mq5, mq135);
   
-  // Blink transmit LED
+  // Blink transmit LED briefly
   digitalWrite(TRANSMIT_LED, HIGH);
   
-  // Transmit data via UART
+  // Transmit ONLY sensor data via UART (no debug text!)
   Serial.println(dataBuffer);
   
+  // Small delay for UART stability
+  delay(50);
   digitalWrite(TRANSMIT_LED, LOW);
   
-  // Show transmission count on status LED (brief flash)
+  // Show transmission count on status LED (brief flash every 10 transmissions)
   transmissionCount++;
   if (transmissionCount % 10 == 0) {
     digitalWrite(STATUS_LED, LOW);
