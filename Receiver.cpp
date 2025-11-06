@@ -1,18 +1,18 @@
 #define RXD2 16
 #define TXD2 17
 
-// Gas sensor thresholds
-#define MQ135_THRESHOLD 660   // Air quality/H2S
-#define MQ7_THRESHOLD   660   // Carbon Monoxide
-#define MQ5_THRESHOLD   660   // Methane
+// Gas sensor thresholds - ADJUST THESE BASED ON YOUR BASELINE READINGS
+#define MQ135_THRESHOLD 220   // Air quality/H2S
+#define MQ7_THRESHOLD   500   // Carbon Monoxide
+#define MQ5_THRESHOLD   3200  // Methane - INCREASED because your baseline is ~2700
 
-// O2 thresholds and calibration
+// O2 thresholds
 #define O2_SAFE_THRESHOLD     19.5  // >19.5% = Green (Safe)
 #define O2_WARNING_THRESHOLD  16.0  // 16-19.5% = Yellow (Warning)
                                     // <16% = Red (Danger)
 
-// O2 Calibration constants - ADJUST ACCORDING TO AO-03
-#define O2_CALIBRATION_FACTOR 0.087  // Adjusted for more realistic readings (21% at ~241 raw)
+// O2 Calibration constants - CALIBRATED FOR YOUR SENSOR
+#define O2_CALIBRATION_FACTOR 0.025  // Calibrated: 21% at ~840 raw reading
 #define O2_ZERO_OFFSET        0      // Baseline offset
 
 // MQ135 pins
@@ -33,11 +33,10 @@
 #define MQ5_BUTTON   18
 #define MQ5_STATUS   15
 
-// RGB LED pins for O2 status
-// NOTE: If colors are wrong, try swapping these pin definitions
-#define RGB_RED_PIN   5    // Swapped with BLUE
+// RGB LED pins for O2 status (Common Anode)
+#define RGB_RED_PIN   5
 #define RGB_GREEN_PIN 23  
-#define RGB_BLUE_PIN  2    // Swapped with RED
+#define RGB_BLUE_PIN  2
 
 // Data reception status LED
 #define STATUS_LED_PIN 14
@@ -98,7 +97,9 @@ void setup() {
 
   Serial.println("=== Gas Detection Receiver Started ===");
   Serial.println("Listening for sensor data...");
-  Serial.println("O2 Thresholds: >19.5%(Green) 16-19.5%(Yellow) <16%(Red)");
+  Serial.println("DISPLAYS: Temperature, Humidity, O2, MQ7, MQ5, MQ135");
+  Serial.println("ALERTS: Only MQ7, MQ5, MQ135 (buzzer + LED)");
+  Serial.println("O2 RGB: >19.5%(Green) 16-19.5%(Yellow) <16%(Red)");
 }
 
 void loop() {
@@ -147,39 +148,44 @@ void processIncomingData() {
   data.replace("°C", "");  // Remove degree symbol
   data.replace("%", "");   // Remove percent symbol
 
-  // Parse the new 6-field format: Temp,Humidity,MQ7,MQ5,MQ135,O2Raw
-  float temp, hum;
+  // Parse the transmitter format: Temp:X,Humidity:X,MQ7:X,MQ5:X,MQ135:X,O2Raw:X
+  float temp, hum, o2val;
   int mq7, mq5, mq135, o2raw;
 
   int parsed = sscanf(data.c_str(),
-                      "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d",
-                      &temp, &hum, &mq7, &mq5, &mq135, &o2raw);
+                      "Temp:%f,Humidity:%f,MQ7:%d,MQ5:%d,MQ135:%d,O2Raw:%d,O2:%f",
+                      &temp, &hum, &mq7, &mq5, &mq135, &o2raw, &o2val);
 
-  if (parsed == 6) {
-    // Calculate O2 percentage from raw value
-    float o2percent = (o2raw * O2_CALIBRATION_FACTOR) + O2_ZERO_OFFSET;
-    o2percent = constrain(o2percent, 0.0, 30.0);
-
-    // Store sensor values for alert patterns
+  if (parsed >= 5) {  // At least need Temp, Humidity, MQ7, MQ5, MQ135
+    // Store MQ sensor values for alert patterns
     currentMQ135 = mq135;
     currentMQ7 = mq7;
     currentMQ5 = mq5;
 
-    // Handle O2 RGB LED indication
-    handleOxygenStatus(o2percent);
+    // Calculate O2 percentage from raw value (for display and RGB LED)
+    float o2percent = 0.0;
+    if (parsed >= 6) {  // If O2Raw field exists
+      o2percent = (o2raw * O2_CALIBRATION_FACTOR) + O2_ZERO_OFFSET;
+      o2percent = constrain(o2percent, 0.0, 30.0);
+      
+      // Handle O2 RGB LED indication
+      handleOxygenStatus(o2percent);
+    }
 
-    // Display parsed data
-    Serial.println("=== SENSOR DATA ===");
+    // Display ALL sensor data
+    Serial.println("=== ALL SENSOR DATA ===");
     Serial.printf("Temperature: %.1f°C\n", temp);
     Serial.printf("Humidity: %.1f%%\n", hum);
     Serial.printf("MQ7 (CO): %d %s\n", mq7, (mq7 > MQ7_THRESHOLD) ? "ALERT!" : "OK");
     Serial.printf("MQ5 (CH4): %d %s\n", mq5, (mq5 > MQ5_THRESHOLD) ? "ALERT!" : "OK");
     Serial.printf("MQ135 (Air): %d %s\n", mq135, (mq135 > MQ135_THRESHOLD) ? "ALERT!" : "OK");
-    Serial.printf("O2 Raw: %d | O2: %.2f%% %s\n", o2raw, o2percent, getO2Status(o2percent).c_str());
-    Serial.println("==================");
+    if (parsed >= 6) {
+      Serial.printf("O2 Raw: %d | O2: %.2f%% %s\n", o2raw, o2percent, getO2Status(o2percent).c_str());
+    }
+    Serial.println("=======================");
     
   } else {
-    Serial.println("⚠ Parse Error! Expected 6 fields, got " + String(parsed));
+    Serial.println("Parse Error! Expected at least 5 fields, got " + String(parsed));
   }
 }
 
@@ -190,7 +196,7 @@ void handleButton(int buttonPin, bool &alertsEnabled, bool &lastButtonState, int
     alertsEnabled = !alertsEnabled;
     digitalWrite(statusLED, alertsEnabled ? HIGH : LOW);
     
-    // IMPORTANT: Turn OFF buzzer and LED when disabling alerts
+    // Turn OFF buzzer and LED when disabling alerts
     if (!alertsEnabled) {
       if (sensorName == "MQ135") {
         digitalWrite(MQ135_BUZZER, LOW);
@@ -229,7 +235,7 @@ void checkDataTimeout() {
       warningBlinkState = true;
       digitalWrite(STATUS_LED_PIN, HIGH);
       warningBlinkTimer = now;
-      Serial.println("⚠ CONNECTION LOST - Starting warning blinks");
+      Serial.println("CONNECTION LOST - Starting warning blinks");
       
       // Flash RGB LED red for communication error
       setRGBColor(255, 0, 0);
@@ -286,10 +292,9 @@ void handleOxygenStatus(float o2percent) {
   }
 }
 
-// Set RGB LED color - Fixed for COMMON ANODE RGB LED
+// Set RGB LED color - For COMMON ANODE RGB LED
 void setRGBColor(int red, int green, int blue) {
   // For common anode RGB LED: LOW = ON, HIGH = OFF
-  // Invert the logic: HIGH to turn OFF, LOW to turn ON
   digitalWrite(RGB_RED_PIN, (red > 0) ? LOW : HIGH);
   digitalWrite(RGB_GREEN_PIN, (green > 0) ? LOW : HIGH);
   digitalWrite(RGB_BLUE_PIN, (blue > 0) ? LOW : HIGH);
